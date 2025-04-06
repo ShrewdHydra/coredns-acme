@@ -159,8 +159,8 @@ func TestIntegrationWorkflow(t *testing.T) {
 		t.Fatalf("ServeDNS failed: %v", err)
 	}
 
-	if len(w.msg.Answer) != 1 {
-		t.Fatalf("Expected 1 answer, got %d", len(w.msg.Answer))
+	if len(w.msg.Answer) != 2 {
+		t.Fatalf("Expected 2 answers, got %d", len(w.msg.Answer))
 	}
 
 	txtRecord, ok = w.msg.Answer[0].(*dns.TXT)

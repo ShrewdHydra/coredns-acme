@@ -108,13 +108,15 @@ func (a *ACME) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 		return dns.RcodeSuccess, nil
 	}
 
-	// Create the TXT record response
-	rr := new(dns.TXT)
-	rr.Hdr = dns.RR_Header{Name: qname, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: defaultTTL}
-	rr.Txt = records
-	log.Debugf("Serving TXT records for %s: %v", qname, rr.Txt)
+	// Create TXT record responses
+	for _, record := range records {
+		m.Answer = append(m.Answer, &dns.TXT{
+			Hdr: dns.RR_Header{Name: qname, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: defaultTTL},
+			Txt: []string{record},
+		})
+	}
+	log.Debugf("Serving TXT records for %s: %v", qname, m.Answer)
 
-	m.Answer = []dns.RR{rr}
 	w.WriteMsg(m)
 	return dns.RcodeSuccess, nil
 }
