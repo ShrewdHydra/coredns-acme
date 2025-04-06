@@ -124,7 +124,7 @@ make
 
 ## API Usage
 
-The plugin provides a RESTful API for managing DNS records for ACME DNS-01 challenges, compatible with the Lego httpreq provider used by Traefik and other tools. All endpoints require authentication.
+The plugin provides a RESTful API for managing DNS records for ACME DNS-01 challenges, compatible with the Lego httpreq provider used by Traefik and other tools.
 
 ### Endpoints
 
@@ -151,9 +151,9 @@ POST /register
 }
 ```
 
-#### Update TXT Record
+#### Present TXT Record
 ```
-POST /update
+POST /present
 ```
 
 **Request:**
@@ -169,6 +169,36 @@ POST /update
 {
   "success": true
 }
+```
+
+#### Cleanup TXT Record
+```
+POST /cleanup
+```
+
+**Request:**
+```json
+{
+  "fqdn": "_acme-challenge.example.org",
+  "txt": "acme-challenge-value"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+#### Health Check
+```
+GET /health
+```
+
+**Response:**
+```
+OK
 ```
 
 ### Traefik Integration
@@ -220,6 +250,7 @@ The `server` label indicates which server handled the request. See the *metrics*
 * [ACME Protocol](https://tools.ietf.org/html/rfc8555)
 * [Lego's HTTP Request provider](https://go-acme.github.io/lego/dns/httpreq/)
 * [Traefik](https://doc.traefik.io/traefik/)
+* [joohoi's ACME Server](https://github.com/joohoi/acme-dns) which was the inspiration for this plugin
 
 ## License
 
