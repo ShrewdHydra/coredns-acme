@@ -63,17 +63,20 @@ func (a *ACME) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 	// Check if the query is for a zone we're authoritative for
 	zone := plugin.Zones(a.Zones).Matches(qname)
 	if zone == "" {
+		log.Debugf("No zone matches for %s, falling through", qname)
 		return plugin.NextOrFailure(a.Name(), a.Next, ctx, w, r)
 	}
 
 	// Check if it's a TXT record query
 	if state.QType() != dns.TypeTXT {
+		log.Debug("Not a TXT record query, falling through")
 		// Only process TXT records, fall through for other query types
 		return plugin.NextOrFailure(a.Name(), a.Next, ctx, w, r)
 	}
 
 	// Check if it's an ACME challenge subdomain (_acme-challenge.<domain>)
 	if !strings.HasPrefix(qname, "_acme-challenge.") {
+		log.Debug("Not an ACME challenge subdomain, falling through")
 		return plugin.NextOrFailure(a.Name(), a.Next, ctx, w, r)
 	}
 
@@ -93,13 +96,14 @@ func (a *ACME) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 
 	// Retrieve the record from the database
 	records, err := a.db.GetRecords(qname)
-
 	if err != nil {
 		if err == ErrRecordNotFound {
 			// Fall through to next plugin if no record found and fallthrough is enabled for this zone
 			if a.Fall.Through(qname) {
+				log.Debugf("No record found for %s, falling through to next plugin", qname)
 				return plugin.NextOrFailure(a.Name(), a.Next, ctx, w, r)
 			}
+			log.Debugf("No record found for %s and no fallthrough, returning NXDOMAIN", qname)
 			return dns.RcodeNameError, nil
 		}
 		log.Errorf("Error retrieving record for %s: %v", qname, err)

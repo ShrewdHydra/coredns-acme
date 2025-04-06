@@ -33,6 +33,8 @@ func (a *ACME) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debugf("Received registration request: Username: %s, Zone: %s, AllowFrom: %v", regRequest.Username, regRequest.Zone, regRequest.AllowFrom)
+
 	if err := json.NewDecoder(r.Body).Decode(&regRequest); err != nil {
 		log.Warningf("Invalid registration request: %v", err)
 		writeJSONError(w, "malformed_json", http.StatusBadRequest)
@@ -88,6 +90,7 @@ func (a *ACME) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 func (a *ACME) handlePresent(w http.ResponseWriter, r *http.Request) {
 	APIRequestCount.WithLabelValues("acme "+a.APIConfig.APIAddr, "present").Inc()
+	log.Debugf("Received present request for %s", r.Context().Value(ACMERequestKey))
 
 	// Get account from context
 	if a.AuthConfig.RequireAuth {
@@ -119,7 +122,7 @@ func (a *ACME) handlePresent(w http.ResponseWriter, r *http.Request) {
 
 func (a *ACME) handleCleanup(w http.ResponseWriter, r *http.Request) {
 	APIRequestCount.WithLabelValues("acme "+a.APIConfig.APIAddr, "cleanup").Inc()
-
+	log.Debugf("Received cleanup request for %s", r.Context().Value(ACMERequestKey))
 	// Get account from context
 	if a.AuthConfig.RequireAuth {
 		_, ok := r.Context().Value(ACMEAccountKey).(Account)
