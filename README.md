@@ -17,7 +17,7 @@ The *acme* plugin provides a dynamic DNS API server for handling ACME DNS-01 cha
 - **Multiple Storage Options**: SQLite database with in-memory option (coming soon)
 - **Go-ACME Compatibility**: Works with Lego library used by Traefik and other tools
 - **Proxy Support**: Header-based client IP detection for reverse proxy setups
-- **ACME-Subdomain Specific**: Only answers `_acme-challenge` TXT queries, passing all others to the next plugin
+- **ACME-Subdomain Specific**: Only answers `_acme-challenge` queries, passing all others to the next plugin
 - **Selective Fallthrough**: Configurable fallthrough behavior for ACME challenge domains
 - **Wildcard Certificate Support**: Easily manage wildcard certificates with DNS-01 challenges
 

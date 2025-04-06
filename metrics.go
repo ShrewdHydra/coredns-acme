@@ -14,7 +14,7 @@ var (
 		Subsystem: "acme",
 		Name:      "request_count_total",
 		Help:      "Counter of DNS requests served by the acme plugin.",
-	}, []string{"server"})
+	}, []string{"server", "type"})
 
 	// APIRequestCount exports a prometheus metric that is incremented every time an API request is processed.
 	APIRequestCount = promauto.NewCounterVec(prometheus.CounterOpts{

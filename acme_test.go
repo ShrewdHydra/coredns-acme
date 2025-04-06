@@ -43,8 +43,8 @@ func TestServeDNS(t *testing.T) {
 			name:        "Non-TXT Query",
 			qname:       "_acme-challenge.example.com.",
 			qtype:       dns.TypeA,
-			records:     map[string][]string{},
-			expectedRet: dns.RcodeServerFailure,
+			records:     map[string][]string{"_acme-challenge.example.com.": {"test-value"}},
+			expectedRet: dns.RcodeSuccess,
 		},
 	}
 

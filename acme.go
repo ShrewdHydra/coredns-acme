@@ -67,32 +67,22 @@ func (a *ACME) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 		return plugin.NextOrFailure(a.Name(), a.Next, ctx, w, r)
 	}
 
-	// Check if it's a TXT record query
-	if state.QType() != dns.TypeTXT {
-		log.Debug("Not a TXT record query, falling through")
-		// Only process TXT records, fall through for other query types
-		return plugin.NextOrFailure(a.Name(), a.Next, ctx, w, r)
-	}
-
 	// Check if it's an ACME challenge subdomain (_acme-challenge.<domain>)
 	if !strings.HasPrefix(qname, "_acme-challenge.") {
 		log.Debug("Not an ACME challenge subdomain, falling through")
 		return plugin.NextOrFailure(a.Name(), a.Next, ctx, w, r)
 	}
 
-	log.Debugf("Handling ACME challenge TXT query for %s", qname)
+	queryType := dns.TypeToString[r.Question[0].Qtype]
+	log.Debugf("Handling ACME challenge %s query for %s", queryType, qname)
 
 	// Increment the request counter
-	RequestCount.WithLabelValues(metrics.WithServer(ctx)).Inc()
+	RequestCount.WithLabelValues(metrics.WithServer(ctx), queryType).Inc()
 
 	// Create the response
 	m := new(dns.Msg)
 	m.SetReply(r)
 	m.Authoritative = true
-
-	// Create the TXT record response
-	rr := new(dns.TXT)
-	rr.Hdr = dns.RR_Header{Name: qname, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: defaultTTL}
 
 	// Retrieve the record from the database
 	records, err := a.db.GetRecords(qname)
@@ -110,6 +100,17 @@ func (a *ACME) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 		return dns.RcodeServerFailure, err
 	}
 
+	// Check if it's a TXT record query
+	if queryType != "TXT" && queryType != "ANY" {
+		log.Debug("Not a TXT or ANY query. Responding with empty NOERROR.")
+		// Empty answer section to signal that the name exists, but no records of this type
+		state.W.WriteMsg(m)
+		return dns.RcodeSuccess, nil
+	}
+
+	// Create the TXT record response
+	rr := new(dns.TXT)
+	rr.Hdr = dns.RR_Header{Name: qname, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: defaultTTL}
 	rr.Txt = records
 	log.Debugf("Serving TXT records for %s: %v", qname, rr.Txt)
 
