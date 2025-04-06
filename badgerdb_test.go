@@ -412,3 +412,58 @@ func TestBadgerDB_Close(t *testing.T) {
 		return nil
 	})
 }
+
+func TestBadgerDBReadOnly(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "badger-readonly-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// First create and populate a database in read-write mode
+	rwDB, err := NewBadgerDBWithROOption(tempDir, false)
+	if err != nil {
+		t.Fatalf("Failed to create RW database: %v", err)
+	}
+
+	testRecord := "test.example.com"
+	testValue := "test-token"
+
+	// Add a record
+	err = rwDB.PresentRecord(testRecord, testValue)
+	if err != nil {
+		t.Fatalf("Failed to add record: %v", err)
+	}
+
+	// Close the read-write database
+	if err := rwDB.Close(); err != nil {
+		t.Fatalf("Failed to close RW database: %v", err)
+	}
+
+	// Open the same database in read-only mode
+	roDB, err := NewBadgerDBWithROOption(tempDir, true)
+	if err != nil {
+		t.Fatalf("Failed to open database in read-only mode: %v", err)
+	}
+	defer roDB.Close()
+
+	// Verify we can read the record
+	records, err := roDB.GetRecords(testRecord)
+	if err != nil {
+		t.Fatalf("Failed to read record in read-only mode: %v", err)
+	}
+	if len(records) != 1 || records[0] != testValue {
+		t.Fatalf("Expected record %s, got %v", testValue, records)
+	}
+
+	// Verify write operations fail
+	err = roDB.PresentRecord("new.example.com", "new-token")
+	if err == nil {
+		t.Fatal("Expected error when writing to read-only database, got nil")
+	}
+
+	err = roDB.CleanupRecord(testRecord, testValue)
+	if err == nil {
+		t.Fatal("Expected error when deleting from read-only database, got nil")
+	}
+}

@@ -3,9 +3,11 @@ package acme
 import "errors"
 
 var (
-	ErrRecordNotFound = errors.New("record not found")
+	ErrRecordNotFound   = errors.New("record not found")
+	ErrReadOnlyDatabase = errors.New("database is in read-only mode")
 )
 
+// DB interface for different database backends
 type DB interface {
 	GetRecords(fqdn string) ([]string, error)
 	PresentRecord(fqdn string, value string) error

@@ -22,26 +22,36 @@ type BadgerDB struct {
 
 // NewBadgerDB creates a new BadgerDB instance
 func NewBadgerDB(path string) (*BadgerDB, error) {
+	return NewBadgerDBWithROOption(path, false)
+}
+
+// NewBadgerDBWithROOption creates a new BadgerDB instance with specified read-only option
+func NewBadgerDBWithROOption(path string, readOnly bool) (*BadgerDB, error) {
 	opts := badger.DefaultOptions(path)
 	opts.Logger = nil // Disable Badger's default logger
+	opts.ReadOnly = readOnly
+
+	log.Debugf("Opening BadgerDB at %s (readOnly: %v)", path, readOnly)
 
 	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open BadgerDB: %w", err)
 	}
 
-	// Run garbage collection in background
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for range ticker.C {
-		again:
-			err := db.RunValueLogGC(0.5)
-			if err == nil {
-				goto again
+	// Run garbage collection in background (only for read-write databases)
+	if !readOnly {
+		go func() {
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+			again:
+				err := db.RunValueLogGC(0.5)
+				if err == nil {
+					goto again
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	return &BadgerDB{db: db}, nil
 }

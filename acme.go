@@ -123,6 +123,12 @@ func (a *ACME) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 
 // startAPIServer starts the HTTP API server
 func (a *ACME) Startup() error {
+	// If no API address is specified, skip starting the API server
+	if a.APIConfig.APIAddr == "" {
+		log.Debug("No API endpoint specified, skipping API server startup")
+		return nil
+	}
+
 	log.Infof("Starting ACME API server on %s", a.APIConfig.APIAddr)
 	ln, err := reuseport.Listen("tcp", a.APIConfig.APIAddr)
 	if err != nil {

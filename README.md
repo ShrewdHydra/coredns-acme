@@ -37,7 +37,7 @@ acme [ZONES...] {
 ```
 
 * **ZONES** zones the *acme* plugin will be authoritative for. If empty, the zones from the server block are used.
-* `endpoint` specifies the **ADDRESS** for the API server. Defaults to "127.0.0.1:8080".
+* `endpoint` specifies the **ADDRESS** for the API server. If not specified, the API server will not be started and the database will operate in read-only mode (useful when delegating a zone but still want to use the plugin for DNS-01 challenges).
 * `db` selects the database backend:
   * `badger` with a **PATH** to the database directory (default: "acme_db_data" in the current directory).
   * `sqlite` with a **PATH** to the database file. This requires coredns to be compiled with `CGO_ENABLED=1`.
@@ -66,6 +66,18 @@ Basic configuration with default settings:
 auth.example.org {
     acme {
         endpoint 0.0.0.0:8080
+        fallthrough
+    }
+    forward . 8.8.8.8
+}
+```
+
+DNS-only mode (no API server):
+
+```
+auth.example.org {
+    acme {
+        db badger /var/lib/coredns/acme.db
         fallthrough
     }
     forward . 8.8.8.8
@@ -266,6 +278,15 @@ MIT License
 - Ensure the domain being updated matches the account's allowed zones and is part of the zone the plugin is authoritative for
 - If you've enabled `require_auth`, authentication is mandatory for API record updates, so confirm you're using the correct credentials
 - If `require_auth` is disabled, you can update records without authentication, but global IP restrictions (set using `allowfrom`) still apply
+- If you cannot access the API at all, check if you've configured an `endpoint` - without one, the API server doesn't start (DNS-only mode)
+
+#### DNS-Only Mode
+- If you don't specify an `endpoint`, the plugin will operate in DNS-only mode where:
+  - No API server is started, so record updates via API are not possible
+  - The database is opened in read-only mode at the driver level
+  - This prevents any write operations, ensuring the database integrity
+  - This is useful when you need to serve DNS challenges from a delegated zone
+  - Make sure to populate the database with records from a CoreDNS instance that has the API enabled when using this mode
 
 #### Database Issues
 - Verify the SQLite path is writable by the CoreDNS process
@@ -273,6 +294,7 @@ MIT License
   ```bash
   sqlite3 /path/to/acme.db "PRAGMA integrity_check;"
   ```
+- If using DNS-only mode, ensure the database was populated with records by a CoreDNS instance with API enabled
 
 #### DNS Propagation Problems
 - If using a CNAME record, ensure `_acme-challenge.yourdomain.com` points to the correct subdomain

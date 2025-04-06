@@ -11,13 +11,34 @@ import (
 
 // SQLiteDB is a SQLite implementation of the DB interface
 type SQLiteDB struct {
-	writeDB *sql.DB
-	readDB  *sql.DB
+	writeDB  *sql.DB
+	readDB   *sql.DB
+	readOnly bool
 }
 
 // NewSQLiteDB creates a new SQLite database
 func NewSQLiteDB(path string) (*SQLiteDB, error) {
-	log.Debugf("Creating new SQLite database at %s", path)
+	return NewSQLiteDBWithROOption(path, false)
+}
+
+// NewSQLiteDBWithROOption creates a new SQLite database with specified read-only option
+func NewSQLiteDBWithROOption(path string, readOnly bool) (*SQLiteDB, error) {
+	log.Debugf("Creating new SQLite database at %s (readOnly: %v)", path, readOnly)
+
+	if readOnly {
+		// Open the database in read-only mode
+		readDB, err := sql.Open("sqlite3", path+"?mode=ro")
+		if err != nil {
+			log.Errorf("Failed to open SQLite database in read-only mode: %v", err)
+			return nil, err
+		}
+		readDB.SetMaxOpenConns(max(4, runtime.NumCPU()))
+
+		// For read-only mode, both writeDB and readDB point to the read-only connection
+		return &SQLiteDB{writeDB: readDB, readDB: readDB, readOnly: true}, nil
+	}
+
+	// Normal read-write mode
 	writeDB, err := sql.Open("sqlite3", path)
 	if err != nil {
 		log.Errorf("Failed to open SQLite database: %v", err)
@@ -55,17 +76,23 @@ func NewSQLiteDB(path string) (*SQLiteDB, error) {
 		return nil, err
 	}
 
-	return &SQLiteDB{writeDB: writeDB, readDB: readDB}, nil
+	return &SQLiteDB{writeDB: writeDB, readDB: readDB, readOnly: false}, nil
 }
 
 func (s *SQLiteDB) Close() error {
 	if err := s.writeDB.Close(); err != nil {
 		return err
 	}
-	return s.readDB.Close()
+	if s.readDB != s.writeDB {
+		return s.readDB.Close()
+	}
+	return nil
 }
 
 func (s *SQLiteDB) Exec(query string, args ...any) (sql.Result, error) {
+	if s.readOnly {
+		return nil, ErrReadOnlyDatabase
+	}
 	return s.writeDB.Exec(query, args...)
 }
 
@@ -79,6 +106,9 @@ func (s *SQLiteDB) QueryRow(query string, args ...any) *sql.Row {
 
 // RegisterAccount creates a new account
 func (s *SQLiteDB) RegisterAccount(a Account, passwordHash []byte) error {
+	if s.readOnly {
+		return ErrReadOnlyDatabase
+	}
 	_, err := s.Exec("INSERT INTO accounts (username, password, zone, allowfrom) VALUES (?, ?, ?, ?)",
 		a.Username, passwordHash, a.Zone, a.AllowedIPs.String())
 	if err != nil {
@@ -137,6 +167,9 @@ func (s *SQLiteDB) GetRecords(fqdn string) ([]string, error) {
 
 // PresentRecord updates a DNS record
 func (s *SQLiteDB) PresentRecord(fqdn, value string) error {
+	if s.readOnly {
+		return ErrReadOnlyDatabase
+	}
 	_, err := s.Exec("INSERT OR REPLACE INTO records (fqdn, value, updated) VALUES (?, ?, ?)", fqdn, value, time.Now())
 	if err != nil {
 		return err
@@ -146,6 +179,9 @@ func (s *SQLiteDB) PresentRecord(fqdn, value string) error {
 }
 
 func (s *SQLiteDB) CleanupRecord(fqdn, value string) error {
+	if s.readOnly {
+		return ErrReadOnlyDatabase
+	}
 	_, err := s.Exec("DELETE FROM records WHERE fqdn = ? AND value = ?", fqdn, value)
 	if err != nil {
 		return err

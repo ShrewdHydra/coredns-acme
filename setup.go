@@ -43,15 +43,20 @@ func parse(c *caddy.Controller) (*ACME, error) {
 
 	a := &ACME{
 		APIConfig: APIConfig{
-			APIAddr: ":8080",
+			APIAddr:            "",
+			EnableRegistration: false,
 		},
 		AuthConfig: AuthConfig{
 			// ExtractIPFromHeader: "X-Forwarded-For",
-			AllowedIPs: CIDRList{}, // No IP restrictions by default
+			AllowedIPs:          CIDRList{}, // No IP restrictions by default
+			ExtractIPFromHeader: "",
+			RequireAuth:         false,
 		},
 	}
 
 	accounts := []Account{}
+	var dbType string
+	var dbPath string
 
 	// Parse the configuration
 	for c.Next() {
@@ -135,37 +140,11 @@ func parse(c *caddy.Controller) (*ACME, error) {
 				if !c.NextArg() {
 					return nil, c.ArgErr()
 				}
-				dbType := c.Val()
-				switch dbType {
-				// 	case "memory":
-				// 		var err error
-				// 		a.db, err = db.NewMemDB()
-				// 		if err != nil {
-				// 			return nil, err
-				// 		}
-				case "sqlite":
-					if !c.NextArg() {
-						return nil, c.ArgErr()
-					}
-					dbPath := c.Val()
-					var err error
-					a.db, err = NewSQLiteDB(dbPath)
-					if err != nil {
-						return nil, err
-					}
-				case "badger":
-					if !c.NextArg() {
-						return nil, c.ArgErr()
-					}
-					dbPath := c.Val()
-					var err error
-					a.db, err = NewBadgerDB(dbPath)
-					if err != nil {
-						return nil, err
-					}
-				default:
-					return nil, fmt.Errorf("unknown database type: %s", dbType)
+				dbType = c.Val()
+				if !c.NextArg() {
+					return nil, c.ArgErr()
 				}
+				dbPath = c.Val()
 			case "extract_ip_from_header":
 				if !c.NextArg() {
 					return nil, c.ArgErr()
@@ -179,27 +158,47 @@ func parse(c *caddy.Controller) (*ACME, error) {
 		}
 	}
 
-	if a.db == nil {
-		var err error
-		a.db, err = NewBadgerDB("acme_db_data")
-		if err != nil {
-			return nil, err
-		}
+	// Determine if API is enabled (endpoint is specified)
+	apiEnabled := a.APIConfig.APIAddr != ""
+	if !apiEnabled {
+		log.Info("No API endpoint specified, running in DNS-only mode with read-only database")
+	}
+
+	// Initialize database with the appropriate read-only mode
+	if dbType == "" {
+		dbType = "badger"       // Default type
+		dbPath = "acme_db_data" // Default path
+	}
+
+	var err error
+	switch dbType {
+	case "sqlite":
+		a.db, err = NewSQLiteDBWithROOption(dbPath, !apiEnabled)
+	case "badger":
+		a.db, err = NewBadgerDBWithROOption(dbPath, !apiEnabled)
+	default:
+		return nil, fmt.Errorf("unknown database type: %s", dbType)
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	// Register any accounts defined in the configuration
-	for _, account := range accounts {
-		// Hash the password for storage
-		passwordHash, err := bcrypt.GenerateFromPassword([]byte(account.Password), 10)
-		if err != nil {
-			return nil, fmt.Errorf("failed to hash password for account %s: %v", account.Username, err)
-		}
+	if apiEnabled {
+		for _, account := range accounts {
+			// Hash the password for storage
+			passwordHash, err := bcrypt.GenerateFromPassword([]byte(account.Password), 10)
+			if err != nil {
+				return nil, fmt.Errorf("failed to hash password for account %s: %v", account.Username, err)
+			}
 
-		if err := a.db.RegisterAccount(account, passwordHash); err != nil {
-			return nil, fmt.Errorf("failed to register account %s: %v", account.Username, err)
-		}
+			if err := a.db.RegisterAccount(account, passwordHash); err != nil {
+				return nil, fmt.Errorf("failed to register account %s: %v", account.Username, err)
+			}
 
-		log.Infof("Registered account from config: username=%s, zone=%s", account.Username, account.Zone)
+			log.Infof("Registered account from config: username=%s, zone=%s", account.Username, account.Zone)
+		}
 	}
 
 	return a, nil
