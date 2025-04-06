@@ -112,6 +112,12 @@ func TestSQLiteDB_GetAccount(t *testing.T) {
 			AllowedIPs: []string{"10.0.0.0/24"},
 		},
 		{
+			Username:   "user1",
+			Password:   "pass1",
+			Zone:       "other-example.com",
+			AllowedIPs: []string{"192.168.1.1"},
+		},
+		{
 			Username:   "user2",
 			Password:   "pass2",
 			Zone:       "different.org",
@@ -173,6 +179,13 @@ func TestSQLiteDB_GetAccount(t *testing.T) {
 			name:      "Non-matching subdomain",
 			username:  "user1",
 			subdomain: "nonmatching.org",
+			wantZone:  "",
+			wantErr:   true,
+		},
+		{
+			name:      "Non-existing but similar subdomain",
+			username:  "user1",
+			subdomain: "non-existing.another-example.com",
 			wantZone:  "",
 			wantErr:   true,
 		},

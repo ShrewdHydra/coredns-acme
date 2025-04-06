@@ -55,7 +55,7 @@ func (m *MemDB) GetAccount(username, subdomain string) (Account, error) {
 			continue
 		}
 
-		zone := parts[1]
+		zone := "." + parts[1]
 		// Check if subdomain ends with zone (domain match logic)
 		if strings.HasSuffix(subdomain, zone) && len(zone) > bestMatchLength {
 			bestMatch = acc

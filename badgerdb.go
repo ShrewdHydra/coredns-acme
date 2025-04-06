@@ -111,7 +111,7 @@ func (b *BadgerDB) GetAccount(username, zone string) (Account, error) {
 			item := it.Item()
 			key := item.KeyCopy(nil)
 
-			accountZone := string(key[len(zonePrefixKey):])
+			accountZone := "." + string(key[len(zonePrefixKey):])
 
 			// If the zone ends with the query zone, it's a potential match
 			if strings.HasSuffix(zone, accountZone) && len(accountZone) > bestMatchLen {

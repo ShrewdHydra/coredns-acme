@@ -93,7 +93,7 @@ func (s *SQLiteDB) GetAccount(username, subdomain string) (Account, error) {
 	var a Account
 	var allowedIPsStr string
 
-	err := s.QueryRow("SELECT username, password, zone, allowfrom FROM accounts WHERE username = ? AND ? LIKE '%' || zone ORDER BY LENGTH(zone) DESC", username, subdomain).
+	err := s.QueryRow("SELECT username, password, zone, allowfrom FROM accounts WHERE username = ? AND (zone = ? OR ? LIKE '%.' || zone) ORDER BY LENGTH(zone) DESC LIMIT 1", username, subdomain, subdomain).
 		Scan(&a.Username, &a.Password, &a.Zone, &allowedIPsStr)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -152,99 +152,3 @@ func (s *SQLiteDB) CleanupRecord(fqdn, value string) error {
 	}
 	return nil
 }
-
-// UpdateRotatedRecord updates the oldest TXT record for a domain
-// This maintains two records and updates the oldest one first for ACME challenges
-// func (s *SQLiteDB) UpdateRotatedRecord(subdomain, value string) error {
-// 	// // Check if records exist for this domain
-// 	// var count int
-// 	// err := s.QueryRow("SELECT COUNT(*) FROM records WHERE domain LIKE ?", domain+"%").Scan(&count)
-// 	// if err != nil {
-// 	// 	log.Warningf("SQLiteDB: Failed to count records: %v", err)
-// 	// 	return err
-// 	// }
-
-// 	tx, err := s.Begin()
-// 	if err != nil {
-// 		log.Warningf("SQLiteDB: Failed to begin transaction: %v", err)
-// 		return err
-// 	}
-
-// 	defer func() {
-// 		if err != nil {
-// 			tx.Rollback()
-// 		}
-// 	}()
-
-// 	primaryDomain := subdomain
-// 	secondaryDomain := subdomain + "_2"
-// 	now := time.Now()
-
-// 	// Check how many records exist for this domain
-// 	var count int
-// 	err = tx.QueryRow("SELECT COUNT(*) FROM records WHERE domain IN (?, ?)",
-// 		primaryDomain, secondaryDomain).Scan(&count)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// If no records exist, create both
-// 	if count == 0 {
-// 		_, err = tx.Exec("INSERT INTO records (domain, value, updated) VALUES (?, ?, ?)",
-// 			primaryDomain, value, now)
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		_, err = tx.Exec("INSERT INTO records (domain, value, updated) VALUES (?, ?, ?)",
-// 			secondaryDomain, value, now.Add(time.Second)) // Slightly newer
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		return tx.Commit()
-// 	}
-
-// 	// If only one record exists, create the missing one
-// 	if count == 1 {
-// 		var existingDomain string
-// 		err = tx.QueryRow("SELECT domain FROM records WHERE domain IN (?, ?)",
-// 			primaryDomain, secondaryDomain).Scan(&existingDomain)
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		var newDomain string
-// 		if existingDomain == primaryDomain {
-// 			newDomain = secondaryDomain
-// 		} else {
-// 			newDomain = primaryDomain
-// 		}
-
-// 		_, err = tx.Exec("INSERT INTO records (domain, value, updated) VALUES (?, ?, ?)",
-// 			newDomain, value, now)
-// 		if err != nil {
-// 			log.Warningf("SQLiteDB: Failed to find oldest record: %v", err)
-// 			return err
-// 		}
-
-// 		return tx.Commit()
-// 	}
-
-// 	// Both records exist - update the older one
-// 	var oldestDomain string
-// 	err = tx.QueryRow("SELECT domain FROM records WHERE domain IN (?, ?) ORDER BY updated ASC LIMIT 1",
-// 		primaryDomain, secondaryDomain).Scan(&oldestDomain)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	_, err = tx.Exec("UPDATE records SET value = ?, updated = ? WHERE domain = ?",
-// 		value, now, oldestDomain)
-// 	if err != nil {
-// 		log.Warningf("SQLiteDB: Failed to commit transaction: %v", err)
-// 		return err
-// 	}
-
-// 	return tx.Commit()
-// }
