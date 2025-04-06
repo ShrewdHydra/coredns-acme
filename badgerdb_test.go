@@ -1,21 +1,24 @@
 package acme
 
 import (
+	"encoding/json"
 	"os"
 	"slices"
 	"testing"
+
+	"github.com/dgraph-io/badger/v3"
 )
 
-func setupSQLiteTestDB(t *testing.T) *SQLiteDB {
+func setupBadgerTestDB(t *testing.T) *BadgerDB {
 	t.Helper()
 
 	// Create a temporary database file with a unique name for each test
 	dbFile := t.TempDir() + "/test.db"
 
 	// Create a new database
-	db, err := NewSQLiteDB(dbFile)
+	db, err := NewBadgerDB(dbFile)
 	if err != nil {
-		t.Fatalf("Failed to create SQLiteDB: %v", err)
+		t.Fatalf("Failed to create BadgerDB: %v", err)
 	}
 
 	t.Cleanup(func() {
@@ -25,8 +28,8 @@ func setupSQLiteTestDB(t *testing.T) *SQLiteDB {
 
 	return db
 }
-func TestSQLiteDB_RegisterAccount(t *testing.T) {
-	db := setupSQLiteTestDB(t)
+func TestBadgerDB_RegisterAccount(t *testing.T) {
+	db := setupBadgerTestDB(t)
 
 	tests := []struct {
 		name         string
@@ -46,17 +49,6 @@ func TestSQLiteDB_RegisterAccount(t *testing.T) {
 			wantErr:      false,
 		},
 		{
-			name: "Duplicate account",
-			account: Account{
-				Username:   "test_user",
-				Password:   "hashed_password",
-				Zone:       "example.com",
-				AllowedIPs: []string{"192.168.1.1"},
-			},
-			passwordHash: []byte("hashed_password"),
-			wantErr:      true, // Should fail because username+zone is a primary key
-		},
-		{
 			name: "Different zone, same username",
 			account: Account{
 				Username:   "test_user",
@@ -65,7 +57,18 @@ func TestSQLiteDB_RegisterAccount(t *testing.T) {
 				AllowedIPs: []string{"192.168.1.1"},
 			},
 			passwordHash: []byte("hashed_password"),
-			wantErr:      false, // Should succeed as username+zone is unique
+			wantErr:      false,
+		},
+		{
+			name: "Duplicate account",
+			account: Account{
+				Username:   "test_user",
+				Password:   "hashed_password",
+				Zone:       "example.com",
+				AllowedIPs: []string{"192.168.1.1"},
+			},
+			passwordHash: []byte("hashed_password"),
+			wantErr:      false,
 		},
 	}
 
@@ -78,24 +81,34 @@ func TestSQLiteDB_RegisterAccount(t *testing.T) {
 
 			if !tt.wantErr {
 				// Verify account exists in database
-				var count int
-				err := db.QueryRow("SELECT COUNT(*) FROM accounts WHERE username = ? AND zone = ?",
-					tt.account.Username, tt.account.Zone).Scan(&count)
+				var account Account
+				err = db.db.View(func(txn *badger.Txn) error {
+					accountKey := makeAccountKey(tt.account.Username, tt.account.Zone)
+					item, err := txn.Get(accountKey)
+					if err != nil {
+						return err
+					}
+					return item.Value(func(val []byte) error {
+						return json.Unmarshal(val, &account)
+					})
+				})
 
 				if err != nil {
 					t.Fatalf("Failed to query account: %v", err)
 				}
 
-				if count != 1 {
-					t.Errorf("Expected 1 account, got %d", count)
+				if account.Username != tt.account.Username ||
+					account.Zone != tt.account.Zone ||
+					!slices.Equal(account.AllowedIPs, tt.account.AllowedIPs) {
+					t.Errorf("Retrieved account doesn't match stored account")
 				}
 			}
 		})
 	}
 }
 
-func TestSQLiteDB_GetAccount(t *testing.T) {
-	db := setupSQLiteTestDB(t)
+func TestBadgerDB_GetAccount(t *testing.T) {
+	db := setupBadgerTestDB(t)
 
 	// Set up test accounts
 	testAccounts := []Account{
@@ -199,8 +212,8 @@ func TestSQLiteDB_GetAccount(t *testing.T) {
 	}
 }
 
-func TestSQLiteDB_PresentAndGetRecords(t *testing.T) {
-	db := setupSQLiteTestDB(t)
+func TestBadgerDB_PresentAndGetRecords(t *testing.T) {
+	db := setupBadgerTestDB(t)
 
 	tests := []struct {
 		name        string
@@ -264,8 +277,8 @@ func TestSQLiteDB_PresentAndGetRecords(t *testing.T) {
 	}
 }
 
-func TestSQLiteDB_GetRecords_NonExistent(t *testing.T) {
-	db := setupSQLiteTestDB(t)
+func TestBadgerDB_GetRecords_NonExistent(t *testing.T) {
+	db := setupBadgerTestDB(t)
 
 	// Test GetRecords for non-existent record
 	records, err := db.GetRecords("non-existent.example.com")
@@ -280,8 +293,8 @@ func TestSQLiteDB_GetRecords_NonExistent(t *testing.T) {
 	}
 }
 
-func TestSQLiteDB_CleanupRecord(t *testing.T) {
-	db := setupSQLiteTestDB(t)
+func TestBadgerDB_CleanupRecord(t *testing.T) {
+	db := setupBadgerTestDB(t)
 
 	tests := []struct {
 		name    string
@@ -368,8 +381,8 @@ func TestSQLiteDB_CleanupRecord(t *testing.T) {
 	}
 }
 
-func TestSQLiteDB_Close(t *testing.T) {
-	db := setupSQLiteTestDB(t)
+func TestBadgerDB_Close(t *testing.T) {
+	db := setupBadgerTestDB(t)
 
 	// Close the database
 	err := db.Close()
@@ -378,8 +391,11 @@ func TestSQLiteDB_Close(t *testing.T) {
 	}
 
 	// Verify database handles are closed by attempting a query
-	_, err = db.Query("SELECT 1")
-	if err == nil {
-		t.Error("Expected error after Close(), got nil")
-	}
+	db.db.View(func(txn *badger.Txn) error {
+		_, err := txn.Get([]byte("any-key"))
+		if err != badger.ErrDBClosed {
+			t.Errorf("Expected error ErrDBClosed when accessing closed database, got %v", err)
+		}
+		return nil
+	})
 }

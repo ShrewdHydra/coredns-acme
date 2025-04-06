@@ -153,6 +153,16 @@ func parse(c *caddy.Controller) (*ACME, error) {
 					if err != nil {
 						return nil, err
 					}
+				case "badger":
+					if !c.NextArg() {
+						return nil, c.ArgErr()
+					}
+					dbPath := c.Val()
+					var err error
+					a.db, err = NewBadgerDB(dbPath)
+					if err != nil {
+						return nil, err
+					}
 				default:
 					return nil, fmt.Errorf("unknown database type: %s", dbType)
 				}
@@ -171,7 +181,7 @@ func parse(c *caddy.Controller) (*ACME, error) {
 
 	if a.db == nil {
 		var err error
-		a.db, err = NewSQLiteDB("acme.db")
+		a.db, err = NewBadgerDB("acme_db_data")
 		if err != nil {
 			return nil, err
 		}

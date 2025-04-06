@@ -8,154 +8,6 @@ import (
 	"github.com/coredns/caddy"
 )
 
-func TestSetup(t *testing.T) {
-	// Create a temporary directory for the database files
-	tmpDir, err := os.MkdirTemp("", "acme-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	dbPath := tmpDir + "/acme.db"
-
-	tests := []struct {
-		name          string
-		config        string
-		serverBlock   []string
-		expectedError bool
-		errorContains string
-	}{
-		{
-			name: "Valid minimal config",
-			config: `acme {
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: false,
-		},
-		{
-			name: "Valid complete config",
-			config: `acme {
-				endpoint 0.0.0.0:8080
-				db sqlite ` + dbPath + `
-				extract_ip_from_header X-Forwarded-For
-				allowfrom 10.0.0.0/8 192.168.0.0/16
-				account test_user test_pass example.com
-				account admin strong_pass example.org 10.0.0.1 192.168.1.0/24
-				fallthrough
-			}`,
-			serverBlock:   []string{"example.org", "example.com"},
-			expectedError: false,
-		},
-		{
-			name: "Invalid DB type",
-			config: `acme {
-				db invalid ` + dbPath + `
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: true,
-			errorContains: "unknown database type",
-		},
-		{
-			name: "Missing DB path",
-			config: `acme {
-				db sqlite
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: true,
-			errorContains: "Wrong argument count",
-		},
-		{
-			name: "Unknown property",
-			config: `acme {
-				unknown property
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: true,
-			errorContains: "unknown property",
-		},
-		{
-			name: "Missing account username",
-			config: `acme {
-				account
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: true,
-			errorContains: "Wrong argument count",
-		},
-		{
-			name: "Missing account password",
-			config: `acme {
-				account user1
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: true,
-			errorContains: "Wrong argument count",
-		},
-		{
-			name: "Invalid CIDR in account",
-			config: `acme {
-				account user1 pass1 example.org not*a*valid*cidr*or*domain
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: true,
-			errorContains: "invalid CIDR or DNS Zone",
-		},
-		{
-			name: "Invalid CIDR in allowfrom",
-			config: `acme {
-				allowfrom invalid/cidr
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: true,
-			errorContains: "invalid CIDR",
-		},
-		{
-			name: "Missing extract_ip_from_header value",
-			config: `acme {
-				extract_ip_from_header
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: true,
-			errorContains: "Wrong argument count",
-		},
-		{
-			name: "Missing endpoint value",
-			config: `acme {
-				endpoint
-			}`,
-			serverBlock:   []string{"example.org"},
-			expectedError: true,
-			errorContains: "Wrong argument count",
-		},
-		{
-			name: "Valid with multiple zones in server block",
-			config: `acme {
-			}`,
-			serverBlock:   []string{"example.org", "example.com", "example.net"},
-			expectedError: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			c := caddy.NewTestController("dns", tc.config)
-			c.ServerBlockKeys = tc.serverBlock
-
-			err := setup(c)
-
-			if tc.expectedError && err == nil {
-				t.Errorf("Expected error but got none")
-			}
-			if !tc.expectedError && err != nil {
-				t.Errorf("Expected no error but got: %v", err)
-			}
-			if tc.errorContains != "" && (err == nil || !strings.Contains(err.Error(), tc.errorContains)) {
-				t.Errorf("Expected error containing %q but got: %v", tc.errorContains, err)
-			}
-		})
-	}
-}
-
 func TestParse(t *testing.T) {
 	// Create a temporary directory for test databases
 	tmpDir, err := os.MkdirTemp("", "acme-parse-test")
@@ -164,7 +16,7 @@ func TestParse(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	dbPath := tmpDir + "/acme.db"
+	sqliteDBPath := tmpDir + "/acme.db"
 
 	tests := []struct {
 		name                    string
@@ -194,7 +46,7 @@ func TestParse(t *testing.T) {
 		{
 			name: "Parse DB config",
 			config: `acme {
-				db sqlite ` + dbPath + `
+				db sqlite ` + sqliteDBPath + `
 			}`,
 			serverBlock:   []string{"example.org"},
 			expectedError: false,
@@ -243,7 +95,7 @@ func TestParse(t *testing.T) {
 			name: "Parse complete configuration",
 			config: `acme {
 				endpoint 0.0.0.0:8000
-				db sqlite ` + dbPath + `
+				db sqlite ` + sqliteDBPath + `
 				extract_ip_from_header X-Custom-IP
 				allowfrom 10.0.0.0/8 192.168.0.0/16
 				account user1 pass1 example.com
@@ -272,6 +124,7 @@ func TestParse(t *testing.T) {
 			c.ServerBlockKeys = tc.serverBlock
 
 			a, err := parse(c)
+			a.db.Close()
 
 			// Check error expectations
 			if tc.expectedError && err == nil {

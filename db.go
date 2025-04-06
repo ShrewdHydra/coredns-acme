@@ -1,5 +1,11 @@
 package acme
 
+import "errors"
+
+var (
+	ErrRecordNotFound = errors.New("record not found")
+)
+
 type DB interface {
 	GetRecords(fqdn string) ([]string, error)
 	PresentRecord(fqdn string, value string) error

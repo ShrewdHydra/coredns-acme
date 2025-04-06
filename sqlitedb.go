@@ -9,10 +9,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var (
-	ErrRecordNotFound = errors.New("record not found")
-)
-
 // SQLiteDB is a SQLite implementation of the DB interface
 type SQLiteDB struct {
 	writeDB *sql.DB
