@@ -30,6 +30,7 @@ func NewBadgerDBWithROOption(path string, readOnly bool) (*BadgerDB, error) {
 	opts := badger.DefaultOptions(path)
 	opts.Logger = nil // Disable Badger's default logger
 	opts.ReadOnly = readOnly
+	opts.BypassLockGuard = readOnly
 
 	log.Debugf("Opening BadgerDB at %s (readOnly: %v)", path, readOnly)
 
