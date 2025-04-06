@@ -90,11 +90,13 @@ func (a *ACME) handlePresent(w http.ResponseWriter, r *http.Request) {
 	APIRequestCount.WithLabelValues("acme "+a.APIConfig.APIAddr, "present").Inc()
 
 	// Get account from context
-	_, ok := r.Context().Value(ACMEAccountKey).(Account)
-	if !ok {
-		log.Warning("No account found in request context")
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
-		return
+	if a.AuthConfig.RequireAuth {
+		_, ok := r.Context().Value(ACMEAccountKey).(Account)
+		if !ok {
+			log.Warning("No account found in request context")
+			writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	presentRequest, ok := r.Context().Value(ACMERequestKey).(ACMETxt)
@@ -119,11 +121,13 @@ func (a *ACME) handleCleanup(w http.ResponseWriter, r *http.Request) {
 	APIRequestCount.WithLabelValues("acme "+a.APIConfig.APIAddr, "cleanup").Inc()
 
 	// Get account from context
-	_, ok := r.Context().Value(ACMEAccountKey).(Account)
-	if !ok {
-		log.Warning("No account found in request context")
-		writeJSONError(w, "unauthorized", http.StatusUnauthorized)
-		return
+	if a.AuthConfig.RequireAuth {
+		_, ok := r.Context().Value(ACMEAccountKey).(Account)
+		if !ok {
+			log.Warning("No account found in request context")
+			writeJSONError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	cleanupRequest, ok := r.Context().Value(ACMERequestKey).(ACMETxt)

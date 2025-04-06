@@ -256,6 +256,7 @@ func TestHandlePresentErrors(t *testing.T) {
 		db:    errDB,
 		AuthConfig: AuthConfig{
 			ExtractIPFromHeader: "X-Forwarded-For",
+			RequireAuth:         true,
 		},
 	}
 
@@ -480,6 +481,7 @@ func TestHandleCleanupErrors(t *testing.T) {
 		db:    errDB,
 		AuthConfig: AuthConfig{
 			ExtractIPFromHeader: "X-Forwarded-For",
+			RequireAuth:         true,
 		},
 	}
 
