@@ -166,8 +166,8 @@ func parse(c *caddy.Controller) (*ACME, error) {
 
 	// Initialize database with the appropriate read-only mode
 	if dbType == "" {
-		dbType = "badger"       // Default type
-		dbPath = "acme_db_data" // Default path
+		dbType = "sqlite"  // Default type
+		dbPath = "acme.db" // Default path
 	}
 
 	var err error

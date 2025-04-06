@@ -39,8 +39,8 @@ acme [ZONES...] {
 * **ZONES** zones the *acme* plugin will be authoritative for. If empty, the zones from the server block are used.
 * `endpoint` specifies the **ADDRESS** for the API server. If not specified, the API server will not be started and the database will operate in read-only mode (useful when delegating a zone but still want to use the plugin for DNS-01 challenges).
 * `db` selects the database backend:
-  * `badger` with a **PATH** to the database directory (default: "acme_db_data" in the current directory).
-  * `sqlite` with a **PATH** to the database file. This requires coredns to be compiled with `CGO_ENABLED=1`.
+  * `sqlite` with a **PATH** to the database file (default: "acme.db" in the current directory).
+  * `badger` with a **PATH** to the database directory.
   * `memory` for an in-memory database (coming soon).
 * `extract_ip_from_header` extracts the client IP address from the specified HTTP header instead of using the TCP remote address.
 * `allowfrom` lists IP addresses or CIDR ranges allowed to access the API globally.

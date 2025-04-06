@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // SQLiteDB is a SQLite implementation of the DB interface
@@ -27,7 +27,7 @@ func NewSQLiteDBWithROOption(path string, readOnly bool) (*SQLiteDB, error) {
 
 	if readOnly {
 		// Open the database in read-only mode
-		readDB, err := sql.Open("sqlite3", path+"?mode=ro")
+		readDB, err := sql.Open("sqlite", path+"?mode=ro")
 		if err != nil {
 			log.Errorf("Failed to open SQLite database in read-only mode: %v", err)
 			return nil, err
@@ -39,14 +39,14 @@ func NewSQLiteDBWithROOption(path string, readOnly bool) (*SQLiteDB, error) {
 	}
 
 	// Normal read-write mode
-	writeDB, err := sql.Open("sqlite3", path)
+	writeDB, err := sql.Open("sqlite", path)
 	if err != nil {
 		log.Errorf("Failed to open SQLite database: %v", err)
 		return nil, err
 	}
 	writeDB.SetMaxOpenConns(1)
 
-	readDB, err := sql.Open("sqlite3", path)
+	readDB, err := sql.Open("sqlite", path)
 	if err != nil {
 		log.Errorf("Failed to open SQLite database: %v", err)
 		return nil, err
