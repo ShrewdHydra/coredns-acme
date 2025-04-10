@@ -56,9 +56,10 @@ func (a *ACME) Name() string { return "acme" }
 
 // ServeDNS implements the plugin.Handler interface.
 func (a *ACME) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
-	log.Debugf("ServeDNS request received for: %s", r.Question[0].Name)
 	state := request.Request{W: w, Req: r}
 	qname := state.Name()
+	queryType := dns.TypeToString[r.Question[0].Qtype]
+	log.Debugf("Handling ACME challenge %s query for %s", queryType, qname)
 
 	// Check if the query is for a zone we're authoritative for
 	zone := plugin.Zones(a.Zones).Matches(qname)
@@ -72,9 +73,6 @@ func (a *ACME) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (
 		log.Debug("Not an ACME challenge subdomain, falling through")
 		return plugin.NextOrFailure(a.Name(), a.Next, ctx, w, r)
 	}
-
-	queryType := dns.TypeToString[r.Question[0].Qtype]
-	log.Debugf("Handling ACME challenge %s query for %s", queryType, qname)
 
 	// Increment the request counter
 	RequestCount.WithLabelValues(metrics.WithServer(ctx), queryType).Inc()

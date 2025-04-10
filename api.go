@@ -123,6 +123,7 @@ func (a *ACME) handlePresent(w http.ResponseWriter, r *http.Request) {
 func (a *ACME) handleCleanup(w http.ResponseWriter, r *http.Request) {
 	APIRequestCount.WithLabelValues("acme "+a.APIConfig.APIAddr, "cleanup").Inc()
 	log.Debugf("Received cleanup request for %s", r.Context().Value(ACMERequestKey))
+
 	// Get account from context
 	if a.AuthConfig.RequireAuth {
 		_, ok := r.Context().Value(ACMEAccountKey).(Account)
